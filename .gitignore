@@ -7,7 +7,7 @@ __pycache__/
 .cache/
 
 # Streamlit secrets (jamais en repo)
-streamlit.streamlit/secrets.toml
+streamlit/.streamlit/secrets.toml
 
 # environnements virtuels
 .venv/
