@@ -28,7 +28,7 @@ Outil d'analyse de documents PDF pour détecter les documents scannés, re-scann
 
 1. Cloner le dépôt :
    ```bash
-   git clone [URL_DU_DEPOT]
+   git clone https://github.com/Antoine-DCGR/check_transcripts_diploma.git
    cd check_transcripts_diploma
    ```
 
