@@ -1,2 +1,24 @@
-.pytest_cache
-__pycache__
+# caches Python
+__pycache__/
+**/__pycache__/
+
+# pytest
+.pytest_cache/
+.cache/
+
+# Streamlit secrets (jamais en repo)
+.streamlit/secrets.toml
+
+# environnements virtuels
+.venv/
+venv/
+ENV/
+
+# fichiers temporaires
+*.log
+*.tmp
+*.swp
+*.DS_Store
+
+# fichiers PDF générés par tests (optionnel si gros)
+tests/res/*.pdf
