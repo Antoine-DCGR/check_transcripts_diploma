@@ -1,0 +1,11 @@
+services:
+  check_transcripts_diploma:
+    build: .
+    container_name: check_transcripts_diploma
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./tests/res:/data:ro     # PDFs de test accessibles en CLI/tests
+    ports:
+      - "8501:8501"              # pour l'UI Streamlit
+    # Par défaut, il lance la CMD du Dockerfile (Streamlit)
