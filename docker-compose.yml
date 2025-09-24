@@ -4,6 +4,7 @@ services:
     container_name: check_transcripts_diploma
     working_dir: /app
     volumes:
+      - .:/app
       - ./tests/res:/data:ro
       - ./streamlit/.streamlit/secrets.toml:/app/streamlit/.streamlit/secrets.toml:ro
     ports:

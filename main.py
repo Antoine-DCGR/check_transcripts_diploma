@@ -4,7 +4,7 @@
 import sys
 import json
 
-from revision.pdf_revision import analyze_pdf_with_cli, PdfResurrectNotFound
+from revision.pdf_revision import analyze_pdf_complete, PdfResurrectNotFound
 from metadata.scan_validator import validate_scan_document
 from rescan.rescan_detector import (
     RescanDetector,
@@ -37,12 +37,21 @@ def _init_overall():
     return {"verdict": "valid", "reasons": []}
 
 def _update_overall(report: dict, new_verdict: str, reason: str):
+    """
+    - Met à jour le verdict global s'il est plus grave.
+    - N'ajoute une raison que si le verdict est problématique.
+      (suspect | invalid | falsified | unknown)
+    - La raison est le message détaillé passé par l'appelant.
+    """
     if "overall" not in report or not isinstance(report["overall"], dict):
         report["overall"] = _init_overall()
     cur_v = report["overall"].get("verdict", "valid")
+
     if _priority(new_verdict) > _priority(cur_v):
         report["overall"]["verdict"] = _norm_verdict(new_verdict)
-    if reason:
+
+    v_norm = _norm_verdict(new_verdict)
+    if reason and v_norm in ("suspect", "invalid", "falsified", "unknown"):
         report["overall"].setdefault("reasons", [])
         report["overall"]["reasons"].append(reason)
 
@@ -68,46 +77,53 @@ def main():
 
     # 1) Révisions
     try:
-        rev_res = analyze_pdf_with_cli(pdf_path)
+        rev_res = analyze_pdf_complete(pdf_path)
         if isinstance(rev_res, dict):
             rewrites = rev_res.get("rewrites")
             if isinstance(rewrites, int) and rewrites > 0:
-                report["revision"] = {"verdict": "falsified", "message": "Réécritures détectées"}
-                _update_overall(report, "falsified", "Révisions PDF modifiées")
+                msg = rev_res.get("message", "Réécritures détectées")
+                report["revision"] = {"verdict": "falsified", "message": msg}
+                _update_overall(report, "falsified", msg)
                 print(json.dumps(report, ensure_ascii=False, indent=2))
                 sys.exit(0)
             else:
                 msg = rev_res.get("message", "Révisions cohérentes")
                 report["revision"] = {"verdict": "valid", "message": msg}
-                _update_overall(report, "valid", "Révisions cohérentes")
+                _update_overall(report, "valid", msg)  # pas ajouté aux reasons (verdict non problématique)
         else:
-            report["revision"] = {"verdict": "unknown", "message": "Format inattendu analyze_pdf_with_cli"}
-            _update_overall(report, "unknown", "Révisions: format inattendu")
+            msg = "Format inattendu analyze_pdf_with_cli"
+            report["revision"] = {"verdict": "unknown", "message": msg}
+            _update_overall(report, "unknown", msg)
     except PdfResurrectNotFound:
-        report["revision"] = {"verdict": "unknown", "message": "pdfresurrect introuvable"}
-        _update_overall(report, "unknown", "pdfresurrect introuvable")
+        msg = "pdfresurrect introuvable"
+        report["revision"] = {"verdict": "unknown", "message": msg}
+        _update_overall(report, "unknown", msg)
     except Exception as e:
-        report["revision"] = {"verdict": "invalid", "message": f"Erreur analyse révisions: {e!r}"}
-        _update_overall(report, "invalid", "Erreur analyse révisions")
+        msg = f"Erreur analyse révisions: {e!r}"
+        report["revision"] = {"verdict": "invalid", "message": msg}
+        _update_overall(report, "invalid", msg)
 
     # 2) Métadonnées
     try:
         md_res = validate_scan_document(pdf_path)
         if isinstance(md_res, dict):
             v = _norm_verdict(md_res.get("verdict", "unknown"))
-            report["metadata"] = {"verdict": v, "message": md_res.get("message", "")}
-            _update_overall(report, v, f"Métadonnées={v}")
+            msg = md_res.get("message", "")
+            report["metadata"] = {"verdict": v, "message": msg}
+            _update_overall(report, v, msg)
             if v in ("falsified", "invalid"):
                 print(json.dumps(report, ensure_ascii=False, indent=2))
                 sys.exit(0)
         else:
-            report["metadata"] = {"verdict": "invalid", "message": "Retour inattendu analyse métadonnées"}
-            _update_overall(report, "invalid", "Analyse métadonnées: retour inattendu")
+            msg = "Retour inattendu analyse métadonnées"
+            report["metadata"] = {"verdict": "invalid", "message": msg}
+            _update_overall(report, "invalid", msg)
             print(json.dumps(report, ensure_ascii=False, indent=2))
             sys.exit(0)
     except Exception as e:
-        report["metadata"] = {"verdict": "invalid", "message": f"Erreur analyse métadonnées: {e!r}"}
-        _update_overall(report, "invalid", "Erreur analyse métadonnées")
+        msg = f"Erreur analyse métadonnées: {e!r}"
+        report["metadata"] = {"verdict": "invalid", "message": msg}
+        _update_overall(report, "invalid", msg)
         print(json.dumps(report, ensure_ascii=False, indent=2))
         sys.exit(0)
 
@@ -116,8 +132,9 @@ def main():
         rd = RescanDetector()
         ra = rd.analyze_pdf(pdf_path)
         if isinstance(ra, dict) and "error" in ra:
-            report["criteria"]["rescan"] = {"verdict": "unknown", "message": ra["error"]}
-            _update_overall(report, "unknown", "rescan=unknown")
+            msg = ra.get("error") or "Erreur rescan"
+            report["criteria"]["rescan"] = {"verdict": "unknown", "message": msg}
+            _update_overall(report, "unknown", msg)
         else:
             qual = float(ra["avg_quality_score"])
             art  = float(ra["avg_artifact_score"])
@@ -145,19 +162,20 @@ def main():
             }
 
             if level == "core":
-                _update_overall(report, "falsified", "re-scan détecté (core)")
+                _update_overall(report, "falsified", message)
                 print(json.dumps(report, ensure_ascii=False, indent=2))
                 sys.exit(0)
             elif level == "suspect":
-                _update_overall(report, "suspect", "re-scan suspect")
+                _update_overall(report, "suspect", message)
             else:
-                _update_overall(report, "valid", "re-scan non détecté")
+                _update_overall(report, "valid", message)  # pas ajouté aux reasons
     except Exception as e:
+        msg = f"Erreur rescan: {type(e).__name__}: {e}"
         report["criteria"]["rescan"] = {
             "verdict": "unknown",
-            "message": f"Erreur rescan: {type(e).__name__}: {e}"
+            "message": msg
         }
-        _update_overall(report, "unknown", "rescan=unknown")
+        _update_overall(report, "unknown", msg)
 
     # Sortie finale (statut tel qu'il a évolué)
     print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -1,5 +1,8 @@
 import streamlit as st
-import json, subprocess, tempfile, os
+import json
+import subprocess
+import tempfile
+import os
 
 st.set_page_config(page_title="Vérification PDF", page_icon="🔒", layout="centered")
 
@@ -17,7 +20,7 @@ def do_rerun():
 
 if not st.session_state.authenticated:
     st.title("🔒 Connexion requise")
-    st.info("Veuillez entrer le mot de passe pour accéder à l’outil.")
+    st.info("Veuillez entrer le mot de passe pour accéder à l'outil.")
 
     pwd = st.text_input("Mot de passe", type="password")
     if st.button("Se connecter"):
@@ -31,7 +34,7 @@ if not st.session_state.authenticated:
 
 # ----- zone protégée -----
 st.title("🔍 Vérification automatique de documents PDF")
-st.write("Upload un fichier PDF pour analyser s’il est valide, suspect ou falsifié.")
+st.write("Upload un fichier PDF pour analyser s'il est valide, suspect ou falsifié.")
 
 uploaded_file = st.file_uploader("Choisis un fichier PDF", type=["pdf"])
 
@@ -47,29 +50,59 @@ if uploaded_file is not None:
             ["python3", "main.py", pdf_path],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=120
         )
 
         if result.returncode == 0:
             try:
                 data = json.loads(result.stdout)
-                st.subheader("Résultat de l’analyse")
-                st.json(data)
-                verdict = data.get("overall", {}).get("verdict") or data.get("verdict")
 
+                # Récupération du verdict et des raisons
+                verdict = data.get("overall", {}).get("verdict") or data.get("verdict")
+                reasons = (
+                    data.get("overall", {}).get("reasons")
+                    or data.get("reasons")
+                    or []
+                )
+
+                st.subheader("📋 Résultat de l'analyse")
+
+                # Message principal
                 if verdict == "valid":
-                    st.success("✅ Document valide")
+                    st.success("✅ **Document valide**")
+                    st.write("Le document n'a montré aucun signe de falsification.")
                 elif verdict == "suspect":
-                    st.warning("⚠️ Document suspect")
+                    st.warning("⚠️ **Document suspect**")
+                    st.write("Le document présente des caractéristiques suspectes qui nécessitent une attention particulière.")
                 elif verdict == "falsified":
-                    st.error("❌ Document falsifié")
+                    st.error("❌ **Document falsifié**")
+                    st.write("Le document présente des signes clairs de falsification ou de modification.")
                 else:
-                    st.info("ℹ️ Résultat non déterminé")
+                    st.info("ℹ️ **Résultat non déterminé**")
+                    st.write("L'analyse n'a pas pu déterminer de façon définitive l'authenticité du document.")
+
+                # ⚠️ N'afficher les raisons que si le document n'est PAS valid
+                if reasons and verdict != "valid":
+                    st.subheader("🔍 Détails de l'analyse")
+                    for i, reason in enumerate(reasons, 1):
+                        if verdict == "falsified":
+                            st.error(f"**Raison {i}:** {reason}")
+                        elif verdict == "suspect":
+                            st.warning(f"**Raison {i}:** {reason}")
+                        else:
+                            st.info(f"**Raison {i}:** {reason}")
+
+                st.divider()
+
+                # JSON complet (mode dev)
+                with st.expander("🔧 Détails techniques (JSON complet)", expanded=False):
+                    st.json(data)
+
             except json.JSONDecodeError:
                 st.error("Erreur : sortie JSON non valide")
                 st.text(result.stdout)
         else:
-            st.error("Erreur lors de l’exécution du script")
+            st.error("Erreur lors de l'exécution du script")
             st.text(result.stderr)
     except subprocess.TimeoutExpired:
         st.error("⏱️ Analyse trop longue (timeout).")
