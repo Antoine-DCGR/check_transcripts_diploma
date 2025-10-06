@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 # Répertoire où sont stockés tes PDF de test
-PDF_DIR = Path("tests/res")
+PDF_DIR = Path("analyse_pdf/tests/res")
 
 # Mapping PDF -> verdict attendu
 TEST_CASES = {
@@ -48,7 +48,7 @@ def test_pdf_verdict(filename, expected_verdict):
 
     # Appel du script main.py
     result = subprocess.run(
-        ["python3", "main.py", str(pdf_path)],
+        ["python3", "analyse_pdf/detect_pdf.py", str(pdf_path)],
         capture_output=True,
         text=True,
     )

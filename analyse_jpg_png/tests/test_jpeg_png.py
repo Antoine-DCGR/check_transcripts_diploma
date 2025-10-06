@@ -30,7 +30,7 @@ TEST_CASES = [(f, "False") for f in original_files] + [(f, "True") for f in fals
 def test_jpeg_png(img_path: Path, expected_verdict: str):
     # Appel du main en mode JSON-only
     result = subprocess.run(
-        ["python3", "double_compression_jpeg.py",str(img_path)],
+        ["python3", "detect_jpg_png.py",str(img_path)],
         capture_output=True,
         text=True,
     )
