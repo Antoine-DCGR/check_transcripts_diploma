@@ -1,16 +1,23 @@
 FROM python:3.12-slim
 
-# Dépendances système (OpenCV runtime + gcc)
+# Dépendances système (OpenCV runtime, build tools, ExifTool, pdfresurrect, poppler pour pdf2image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 build-essential ca-certificates git curl \
- && rm -rf /var/lib/apt/lists/*
-
-# pdfresurrect (via APT – dispo sur Debian slim)
-RUN apt-get update && apt-get install -y --no-install-recommends pdfresurrect \
+    libgl1 \
+    libglib2.0-0 \
+    build-essential \
+    ca-certificates \
+    git \
+    curl \
+    pdfresurrect \
+    exiftool \
+    poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 LC_ALL=C.UTF-8 LANG=C.UTF-8
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1 \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8
 
 # Dépendances Python
 COPY requirements.txt .

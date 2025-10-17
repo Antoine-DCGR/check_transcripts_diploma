@@ -4,9 +4,9 @@
 import sys
 import json
 
-from revision.pdf_revision import analyze_pdf_complete, PdfResurrectNotFound
-from metadata.scan_validator import validate_scan_document
-from rescan.rescan_detector import (
+from .revision.pdf_revision import analyze_pdf_complete, PdfResurrectNotFound
+from .metadata.scan_validator import validate_scan_document
+from .rescan.rescan_detector import (
     RescanDetector,
     build_rescan_json,
     QUALITY_CORE_MIN, QUALITY_CORE_MAX, ART_CORE_MIN, ART_CORE_MAX

@@ -17,8 +17,8 @@ for p in (BASE_DIR, PDF_DIR, IMG_DIR):
         sys.path.insert(0, p)
 
 # Imports des "main" spécifiques
-from detect_pdf import main as detect_pdf_main
-from detect_jpg_png import main as detect_jpg_png_main
+from analyse_pdf.detect_pdf import main as detect_pdf_main
+from analyse_jpg_png.detect_jpg_png import main as detect_jpg_png_main
 
 
 def main():

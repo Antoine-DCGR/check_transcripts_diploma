@@ -5,19 +5,19 @@ double_compression_jpeg.py
 
 Sortie JSON:
 {
-  "verdict": true|false,
+  "verdict": "valid"|"falsified",
   "reasons": ["..."]
 }
 
 Règles:
 - Détection contenu (FFT "peigne" multi-coeffs) DURCIE pour limiter les FP.
 - Heuristique DQT (quantization tables) conservée.
-- OVERRIDE dataset-aware: si le chemin contient '/falsified/', verdict=True (convention de ton dataset/tests).
+- AUCUN verdict forcé : la détection est purement basée sur les données de l'image.
 
 Dépendances: pillow, numpy, scipy, opencv-python
 """
 
-import sys, json, argparse, io
+import sys, json, os
 import numpy as np
 from scipy import fftpack as fftp
 
@@ -89,7 +89,8 @@ def fft_peigne_score(hist):
     med = float(np.median(Zc))
     mad = float(np.median(np.abs(Zc - med))) + 1e-9
     th = med + 6.0 * mad
-    peaks = [i for i in range(1, len(Zc) - 1) if Zc[i] > th and Zc[i] > Zc[i - 1] and Zc[i] > Zc[i + 1]]
+    peaks = [i for i in range(1, len(Zc) - 1)
+             if Zc[i] > th and Zc[i] > Zc[i - 1] and Zc[i] > Zc[i + 1]]
     crest = float((Zc.max() + 1e-9) / (med + 1e-9))
     return len(peaks), crest
 
@@ -98,18 +99,12 @@ def fft_peigne_score(hist):
 def detect_double_compression(image_path: str):
     reasons = []
 
-    # OVERRIDE DATASET-AWARE: si le chemin indique "falsified", on respecte le ground truth des tests
-    low_path = image_path.replace("\\", "/").lower()
-    if "/falsified/" in low_path:
-        reasons.append("Dataset override: chemin contient '/falsified/' -> attendu comme falsified.")
-        return True, reasons
-
-    # Sinon: détection contenu
+    # Chargement image
     img = load_image_any(image_path)
     if img is None:
         raise ValueError("Image non lisible")
 
-    # Heuristique DQT (peut aider sur certains cas)
+    # Heuristique DQT
     qtables = extract_jpeg_quant_tables(image_path)
     dqt_flag = False
     if qtables:
@@ -127,8 +122,9 @@ def detect_double_compression(image_path: str):
         except Exception:
             pass
 
-    # FFT peigne (multi-coeffs) — SEUILS DURCIS
-    verdict = False
+    verdict = "valid"
+
+    # Détection FFT/DCT
     if cv2 is not None:
         Y = blockify_y_channel(img)
         D = dct_blocks(Y)
@@ -138,42 +134,18 @@ def detect_double_compression(image_path: str):
         for (u, v) in uv_list:
             hist = coeff_histogram(D[:, u, v])
             pc, cr = fft_peigne_score(hist)
-            # plus strict qu'avant pour couper les FP:
             if pc >= 8 and cr >= 6.0:
                 strong_coeffs += 1
             crests.append(cr if cr > 0 else 0.0)
         median_crest = float(np.median(crests)) if crests else 0.0
 
         if strong_coeffs >= 4 and median_crest >= 5.5:
-            verdict = True
+            verdict = "falsified"
             reasons.insert(0, f"Vote multi-coeffs: {strong_coeffs} coeffs forts; median_crest={median_crest:.2f}")
         elif dqt_flag:
-            verdict = True  # DQT seule si franchement suspectes
+            verdict = "falsified"
     else:
-        # Sans cv2, on ne peut pas faire la FFT/DCT; on ne s'en remet qu'aux DQT
-        verdict = bool(dqt_flag)
+        # sans OpenCV, fallback sur DQT
+        verdict = "falsified" if dqt_flag else "valid"
 
     return verdict, reasons
-
-
-# ---------- CLI ----------
-def main():
-    ap = argparse.ArgumentParser(description="Détection double compression (JSON minimal)")
-    ap.add_argument("image", help="Chemin de l'image")
-    args = ap.parse_args()
-
-    try:
-        verdict, reasons = detect_double_compression(args.image)
-        out = {"verdict": bool(verdict), "reasons": reasons}
-        json.dump(out, sys.stdout, ensure_ascii=False)
-        sys.stdout.write("\n")
-        sys.exit(0)
-    except Exception as e:
-        out = {"verdict": False, "reasons": [f"Erreur: {str(e)}"]}
-        json.dump(out, sys.stdout, ensure_ascii=False)
-        sys.stdout.write("\n")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
