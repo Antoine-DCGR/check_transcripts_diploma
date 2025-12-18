@@ -1,33 +1,53 @@
-FROM python:3.12-slim
-
-# Dépendances système (OpenCV runtime, build tools, ExifTool, pdfresurrect, poppler pour pdf2image)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    build-essential \
-    ca-certificates \
-    git \
-    curl \
-    pdfresurrect \
-    exiftool \
-    poppler-utils \
- && rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim
 
 WORKDIR /app
-ENV PIP_NO_CACHE_DIR=1 \
-    PYTHONUNBUFFERED=1 \
-    LC_ALL=C.UTF-8 \
-    LANG=C.UTF-8
 
-# Dépendances Python
+# ===============================
+# Dépendances système (OBLIGATOIRES)
+# ===============================
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-dev \
+    gcc \
+    g++ \
+    pkg-config \
+    \
+    # OCR
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    \
+    # PDF / images
+    poppler-utils \
+    qpdf \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    \
+    # Math / ML
+    libblas-dev \
+    liblapack-dev \
+    \
+    # Divers
+    libffi-dev \
+    libssl-dev \
+    \
+    && rm -rf /var/lib/apt/lists/*
+
+# ===============================
+# Python deps
+# ===============================
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Code
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
+
+# ===============================
+# App
+# ===============================
 COPY . .
 
-# Port Streamlit
 EXPOSE 8501
 
-# Commande par défaut = Streamlit (UI)
-CMD ["streamlit", "run", "streamlit/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["streamlit", "run", "app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0"]
