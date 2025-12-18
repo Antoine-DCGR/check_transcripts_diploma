@@ -1,45 +1,63 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Validation des métadonnées pour les documents scannés.
-Logique inversée : blacklist d'applications interdites.
-"""
-
 from typing import Dict, Any
-from .common_utils import extract_all_metadata, is_in_blacklist, create_result, SCAN_BLACKLIST
+from analyse_pdf.metadata.common_utils import (
+    extract_all_metadata,
+    is_in_blacklist,
+    create_result,
+    SCAN_BLACKLIST,
+    WEB_TO_PDF_BLACKLIST,
+)
+
+
+def _is_web_pdf(creator: str, producer: str) -> tuple[bool, str]:
+    combined = f"{creator} {producer}"
+    for item in WEB_TO_PDF_BLACKLIST:
+        if item in combined:
+            return True, item
+    return False, ""
 
 
 def validate_scan_document(pdf_path: str) -> Dict[str, Any]:
     """
-    Valide un document scanné via blacklist inversée.
-    
-    Logique :
-    1. Si Creator/Producer contient un élément de la SCAN_BLACKLIST → FALSIFIÉ
-    2. Sinon → VALIDE
+    Barème SCAN (métadonnées) :
+    - éditeur image (Photoshop, Canva…) → falsified (score 3)
+    - générateur Web/HTML-to-PDF       → falsified (score 3)  ✅ (règle métier)
+    - sinon                            → valid (score 0)
     """
-    # Extraction des métadonnées
+
     metadata = extract_all_metadata(pdf_path)
-    creator = metadata['creator']
-    producer = metadata['producer']
-    
-    # Vérification blacklist
-    blacklisted, detected_app = is_in_blacklist(creator, producer, SCAN_BLACKLIST)
-    
+    creator = metadata.get("creator", "") or ""
+    producer = metadata.get("producer", "") or ""
+
+    # 1) Éditeurs interdits (très fort)
+    blacklisted, app = is_in_blacklist(creator, producer, SCAN_BLACKLIST)
     if blacklisted:
         return create_result(
-            ok=False,
-            message=f"Document falsifié : application interdite détectée ({detected_app})",
             verdict="falsified",
+            score=3,
+            message=f"Application interdite détectée ({app})",
             pdf_path=pdf_path,
-            confidence="high"
+            confidence="high",
         )
-    
-    # Aucun élément blacklisté trouvé → document valide
+
+    # 2) Web / HTML-to-PDF (fort selon ton besoin)
+    web, tool = _is_web_pdf(creator, producer)
+    if web:
+        return create_result(
+            verdict="falsified",
+            score=3,
+            message=f"Généré par un outil Web/HTML-to-PDF ({tool})",
+            pdf_path=pdf_path,
+            confidence="high",
+        )
+
+    # 3) Rien à signaler
     return create_result(
-        ok=True,
-        message="Document valide : aucune application suspecte détectée",
         verdict="valid",
+        score=0,
+        message="Aucune application suspecte détectée",
         pdf_path=pdf_path,
-        confidence="high"
+        confidence="high",
     )
