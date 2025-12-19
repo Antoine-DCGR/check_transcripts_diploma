@@ -7,7 +7,6 @@ import sys
 
 from analyse_pdf.revision.pdf_revision import analyze_pdf_complete
 from analyse_pdf.metadata.scan_validator import validate_scan_document
-from analyse_pdf.ia_detector.ia_detector import analyze_pdf_structure
 from analyse_pdf.rescan.rescan_detector import RescanDetector
 
 
