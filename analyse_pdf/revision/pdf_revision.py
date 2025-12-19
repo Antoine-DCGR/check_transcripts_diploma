@@ -92,7 +92,7 @@ def analyze_with_dates(pdf_path: str) -> Dict:
         if pdf_creation and pdf_mod and pdf_creation != pdf_mod:
             return {
                 "method": "pdf_metadata_dates",
-                "score": 3,
+                "score": 2 ,
                 "signal": "strong",
                 "message": "Dates PDF incohérentes (CreationDate ≠ ModDate)"
             }
